@@ -1,2 +1,5 @@
 /Traffic-Light-Server-Client/Server/node_modules
 /Model
+
+/rossnodes/lab_nodes
+/rossnodes/msg
