@@ -1,6 +1,8 @@
-Server/node_modules
-Server/node_modules
+
+
 .DS_Store
 node_modules
 package.json
-pakcge-lock.json
+
+node_modules
+Traffic-Light-Server-Client/Server/node_modules
