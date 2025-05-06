@@ -11,7 +11,7 @@ from std_msgs.msg import String
 camera_status_pub = {}
 IMAGE_TOPIC = "camera"
 IMAGE_MSG_TYPE = SensorImage
-YOLO_MODEL_PATH = '/home/ska/Documents/new_model/yolov5/runs/train/traffic_light_red_green3/weights/best.pt'
+YOLO_MODEL_PATH = '/home/ast/catkin_ws/src/mixed_reality/models/Model/yolov5/runs/train/traffic_light_red_green3/weights/best.pt'
 model = None
 bridge = CvBridge()
 

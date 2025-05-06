@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import rospy
 import paho.mqtt.client as mqtt
-from mixed_reality.msg import Obstacles , Obstacle
+from mixed_reality.msg import Obstacles 
+
 #from sensor_msgs.msg import Image as SensorImage
 #from cv_bridge import CvBridge
 from std_msgs.msg import String
@@ -12,7 +13,7 @@ TRAFFIC_LIGHTS = {}
 
 OBSTACLE_TOPIC = "obstacles"
 OBSTACLE_MSG_TYPE = Obstacles
-BROKER_IP = "192.168.0.103"
+BROKER_IP = "192.168.0.101"
 Mqtt_client = None
 Mqtt_status = {}
 Mqtt_Connected = False 
@@ -22,11 +23,14 @@ last_command = {}
 
 def update_traffic_lights(msg):
     global TRAFFIC_LIGHTS, last_command, Mqtt_status, Mqtt_client
-    print(msg)
+    # print(msg)
     for obstacle in msg.data:
+        
         if "traffic" in obstacle.name:
+            
             TRAFFIC_LIGHTS[obstacle.name] = (obstacle.x, obstacle.y)
             if obstacle.name not in last_command and Mqtt_client is not None:
+                print(obstacle)
                 last_command[obstacle.name] = True
                 Mqtt_status[obstacle.name] = "unknown"
                 topic = f"detection/status/{obstacle.name}"
@@ -34,6 +38,7 @@ def update_traffic_lights(msg):
                 print(f"Subscribed to MQTT topic: {topic}")
 
 def on_mqtt_message(client, userdata, message):
+    print(message)
     topic = message.topic
     tl_id = topic.split("/")[-1]
     Mqtt_status[tl_id] = message.payload.decode()
