@@ -1,16 +1,27 @@
+// TODO : SERVER should verify the response if Hashing and timestamp are true ... if Hashing alone and without alone .. 
+
 const net = require('net');
 const { TrafficLight } = require('./core/TrafficLight.js');
 const TrafficGroup = require('./core/TrafficGroup.js');
 const lightConfig = require('./config/lightConfig.js');
+// const crypto = require('crypto');
+const  { sendCommand } = require('./utils/traffic.commands.js');
 require('./services/api.server.js');
-require('./services/mqtt.service.js');
+if(global.MQTT){
+  require('./services/mqtt.service.js');
+}
+
 // SERVER CONFIG 
-IP = '192.168.0.101';
+IP = '192.168.0.104';
 // IP = '192.168.1.21' ;
 // IP = '172.20.10.2';
 PORT = 12345;
 global.lights = {};
 global.trafficGroupsList = [];
+global.SECRET_KEY =  "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
+global.Hashing = true ; 
+global.MQTT = false ; 
+
 
 const DEFAULT_DURATIONS = {
   red: 2000,
@@ -36,7 +47,9 @@ const server = net.createServer((socket) => {
       socket.destroy();
       return;
     }
-    socket.write(Buffer.from([0x20]));
+    //socket.write(Buffer.from([0x20]));
+    //sendCommand
+    sendCommand(socket, 0x20, "Sending identification request ");
     console.log("Sent 0x20" , socket.remoteAddress , " attempt ", cnt + 1 );
     cnt++;
     //retry evry 3 sec
@@ -51,7 +64,7 @@ const server = net.createServer((socket) => {
     try {
       const { command } = JSON.parse(data);
 
-      if (command === 60 && !resReceived) {
+      if (command === 0x60 && !resReceived) {
         resReceived = true;
         clearTimeout(idInterval);
         console.log(`${socket.remoteAddress} sent 0x60 `);
@@ -95,7 +108,7 @@ function handleReceivedMessage(data, socket) {
 
     const {command} = JSON.parse(data);
     switch (command) {
-      case 60:
+      case 0x60:
         addNewTrafficLight(JSON.parse(data), Object.keys(data).length, socket);
         break;
 

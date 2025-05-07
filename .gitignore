@@ -3,3 +3,6 @@
 
 /rossnodes/lab_nodes
 /rossnodes/msg
+/node_modules
+package-lock.json
+package.json
