@@ -2,22 +2,31 @@ import socket
 import json
 import time
 import threading
+import hmac
+import hashlib
 
-SERVER_IP = '192.168.0.103'
+# --------------------- Configuration ---------------------
+SERVER_IP = '192.168.0.105'
 SERVER_PORT = 12345
-LIGHT_ID = "tl_2"
+LIGHT_ID = "tl_1"
 LOC_X = 0x1234
 LOC_Y = 0x0200
 
-# Light states
+SECRET_KEY_HEX = "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219"
+SECRET_KEY = bytes.fromhex(SECRET_KEY_HEX)
+
+USE_HMAC = False
+USE_TIMESTAMP = False
+
+# --------------------- States ---------------------
 RED = 0
 YELLOW = 1
 GREEN = 2
-
 current_state = RED
 blink = False
 sock = None
 
+# --------------------- Networking ---------------------
 def connect_to_server():
     global sock
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,24 +39,53 @@ def connect_to_server():
             print(f"❌ Connection failed: {e}. Retrying in 2s...")
             time.sleep(2)
 
-def send_status():
-    payload = {
-        "command": 60,
-        "lightID": LIGHT_ID,
-        "loc_x": LOC_X,
-        "loc_y": LOC_Y,
-        "lightStatus": current_state
-    }
-    json_string = json.dumps(payload)
-    sock.sendall((json_string + "\n").encode())
+def reconnect():
+    global sock
+    try:
+        sock.close()
+    except:
+        pass
+    print("🔌 Attempting reconnection...")
+    connect_to_server()
+    send_status()
 
-def send_confirmation():
+# --------------------- Secure Message Construction ---------------------
+def build_payload(command, extra=None):
     payload = {
-        "command": 90,
+        "command": command
+    }
+
+    if extra:
+        payload.update(extra)
+
+    if USE_TIMESTAMP:
+        payload["timestamp"] = int(time.time())
+
+    if USE_HMAC:
+        data_to_hash = dict(payload)
+        msg_to_hash = json.dumps(data_to_hash, separators=(',', ':'), sort_keys=True)
+        h = hmac.new(SECRET_KEY, msg_to_hash.encode(), hashlib.sha256).hexdigest()
+        payload["hmac"] = h
+
+    return payload
+
+def send_json(payload):
+    msg = json.dumps(payload, separators=(',', ':'))
+    sock.sendall(msg.encode() + b'\n')
+
+# --------------------- Outgoing Messages ---------------------
+def send_status():
+    extra = {
         "lightID": LIGHT_ID
     }
-    sock.sendall((json.dumps(payload) + "\n").encode())
+    payload = build_payload(96, extra)
+    send_json(payload)
 
+def send_confirmation():
+    payload = build_payload(90, {"lightID": LIGHT_ID})
+    send_json(payload)
+
+# --------------------- Command Handling ---------------------
 def handle_request(cmd):
     global current_state, blink
     if cmd == 0x20:
@@ -71,19 +109,29 @@ def handle_request(cmd):
     else:
         print(f"⚠️ Unknown command received: {cmd}")
 
-def listen():
-    buffer = b''
+# --------------------- Server Listener ---------------------
+def listen_loop():
+    buffer = ""
     while True:
         try:
-            data = sock.recv(1)
-            if not data:
+            chunk = sock.recv(1024).decode()
+            if not chunk:
                 raise Exception("Disconnected")
-            cmd = data[0]
-            handle_request(cmd)
+            buffer += chunk
+
+            while '\n' in buffer:
+                line, buffer = buffer.split('\n', 1)
+                try:
+                    message = json.loads(line)
+                    cmd = message.get("command")
+                    handle_request(cmd)
+                except json.JSONDecodeError:
+                    print(f"⚠️ Invalid JSON: {line}")
         except Exception as e:
             print(f"❌ Lost connection: {e}")
             reconnect()
 
+# --------------------- Blinking ---------------------
 def blink_loop():
     while True:
         if blink:
@@ -92,22 +140,12 @@ def blink_loop():
         else:
             time.sleep(1)
 
-def reconnect():
-    global sock
-    try:
-        sock.close()
-    except:
-        pass
-    print("🔌 Attempting reconnection...")
-    connect_to_server()
-    send_status()
-    listen()
-
+# --------------------- Main Entry ---------------------
 def main():
     connect_to_server()
     send_status()
 
-    threading.Thread(target=listen, daemon=True).start()
+    threading.Thread(target=listen_loop, daemon=True).start()
     threading.Thread(target=blink_loop, daemon=True).start()
 
     while True:

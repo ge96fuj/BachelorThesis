@@ -1,10 +1,12 @@
 // TODO : SERVER should verify the response if HashingOn and timestamp are true ... if HashingOn alone and without alone .. 
 //Security Config
 global.SECRET_KEY = "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
-global.HashingOn = true;
+global.HashingOn = false;
 global.TimestampOn = false;
 global.AllowedDelay = 5;
 
+//publish status in MQTT ?
+global.MQTT = true ;
 
 
 const net = require('net');
@@ -20,13 +22,13 @@ if(global.MQTT){
 }
 
 // SERVER CONFIG 
-IP = '192.168.0.104';
+IP = '192.168.0.105';
 
 PORT = 12345;
 global.lights = {};
 global.trafficGroupsList = [];
 
-global.MQTT = false ; 
+ 
 
 
 const DEFAULT_DURATIONS = {
