@@ -1,17 +1,7 @@
 const crypto = require('crypto');
-// Message format : [code][timestamp][hmac]
-function buildAuthenticatedMessage(code) {
-    const timestamp = Math.floor(Date.now() / 1000);
-    const buf = Buffer.alloc(5);
-    buf.writeUInt8(code, 0);
-    buf.writeUInt32BE(timestamp, 1);
+const { buildAuthenticatedJsonCommand } = require('./security');
 
-    const hmac = crypto.createHmac('sha256', global.SECRET_KEY)
-        .update(buf)
-        .digest();
 
-    return Buffer.concat([buf, hmac]);
-}
 
 function sendCommand(socket, code, label, lightID = '') {
     if (!socket || socket.destroyed) {
@@ -20,15 +10,18 @@ function sendCommand(socket, code, label, lightID = '') {
         return false;
     }
 
-    message = Buffer.from([code]); 
-    if (global.Hashing) {
-         message = buildAuthenticatedMessage(code);
+    let message;
+    if (global.HashingOn || global.TimestampOn ) {
+        message = buildAuthenticatedJsonCommand(code);
+    } else {
+        message = JSON.stringify({ command: code, lightID });
     }
 
-    console.log(`${label} Sending secure (${code}) to ${lightID}`);
+    console.log(`${label} Sending JSON command (${code}) to ${lightID}`);
     socket.write(message);
     return true;
 }
+
 
 async function goRed(socket, lightID) {
     return sendCommand(socket, 0x21, "🔴 RED →", lightID);

@@ -1,4 +1,11 @@
-// TODO : SERVER should verify the response if Hashing and timestamp are true ... if Hashing alone and without alone .. 
+// TODO : SERVER should verify the response if HashingOn and timestamp are true ... if HashingOn alone and without alone .. 
+//Security Config
+global.SECRET_KEY = "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
+global.HashingOn = true;
+global.TimestampOn = false;
+global.AllowedDelay = 5;
+
+
 
 const net = require('net');
 const { TrafficLight } = require('./core/TrafficLight.js');
@@ -14,14 +21,11 @@ if(global.MQTT){
 
 // SERVER CONFIG 
 IP = '192.168.0.104';
-// IP = '192.168.1.21' ;
-// IP = '172.20.10.2';
+
 PORT = 12345;
 global.lights = {};
 global.trafficGroupsList = [];
-global.SECRET_KEY =  "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
-global.Hashing = true ; 
-global.Timestamp = true
+
 global.MQTT = false ; 
 
 
@@ -65,12 +69,7 @@ const server = net.createServer((socket) => {
     const dataStr = data.toString();
     console.log("Received message:", dataStr, "from", socket.remoteAddress);
   
-    const validation = validateMessage(dataStr, {
-      secretKey: global.SECRET_KEY,
-      verifyTimeStamp: global.Timestamp ,
-      hashing: global.Hashing,
-      allowedDelay: 5,
-    });
+    const validation = validateMessage(dataStr);
   
     if (!validation.valid) {
       console.log(` Message rejected: ${validation.reason}`);
@@ -78,7 +77,7 @@ const server = net.createServer((socket) => {
       socket.destroy();
       return;
     }
-    print("Message VALID")
+    console.log("Message VALID")
   
     const parsed = validation.data;
   
