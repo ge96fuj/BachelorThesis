@@ -6,6 +6,7 @@ const TrafficGroup = require('./core/TrafficGroup.js');
 const lightConfig = require('./config/lightConfig.js');
 // const crypto = require('crypto');
 const  { sendCommand } = require('./utils/traffic.commands.js');
+const { validateMessage } = require('./utils/security');
 require('./services/api.server.js');
 if(global.MQTT){
   require('./services/mqtt.service.js');
@@ -20,6 +21,7 @@ global.lights = {};
 global.trafficGroupsList = [];
 global.SECRET_KEY =  "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
 global.Hashing = true ; 
+global.Timestamp = true
 global.MQTT = false ; 
 
 
@@ -60,20 +62,30 @@ const server = net.createServer((socket) => {
  
 
   socket.on('data', (data) => {
-    console.log(" Received message: " , data.toString() , " from " , socket.remoteAddress );
-    try {
-      const { command } = JSON.parse(data);
-
-      if (command === 0x60 && !resReceived) {
-        resReceived = true;
-        clearTimeout(idInterval);
-        console.log(`${socket.remoteAddress} sent 0x60 `);
-        console.log("0x60 is sent from " ,socket.remoteAddress );
-}
-
-    } catch (err) {
-      console.log("Json Error , msg from " ,socket.remoteAddress  , " ", data.toString() );
+    const dataStr = data.toString();
+    console.log("Received message:", dataStr, "from", socket.remoteAddress);
+  
+    const validation = validateMessage(dataStr, {
+      secretKey: global.SECRET_KEY,
+      verifyTimeStamp: global.Timestamp ,
+      hashing: global.Hashing,
+      allowedDelay: 5,
+    });
+  
+    if (!validation.valid) {
+      console.log(` Message rejected: ${validation.reason}`);
+      clearTimeout(idInterval);
+      socket.destroy();
       return;
+    }
+    print("Message VALID")
+  
+    const parsed = validation.data;
+  
+    if (parsed.command === 0x60 && !resReceived) {
+      resReceived = true;
+      clearTimeout(idInterval);
+      console.log(`${socket.remoteAddress} sent valid 0x60`);
     }
     handleReceivedMessage(data.toString(), socket);
   });

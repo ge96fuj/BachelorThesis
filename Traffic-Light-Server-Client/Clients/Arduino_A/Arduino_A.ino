@@ -13,6 +13,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 60000);
 
 // Security Config :
 const char* secret_key = "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a219";
+const char* secret_key_fake = "f2b7d0c6a3e1c9d56fa43ec0e75bd98b192de4f3914bc7ecb487a3eb5f68a218";
 const size_t MSG_LEN = 37;
 const uint32_t allowedDelay = 5;
 boolean verifyTimeStamp = true; //false if no internet 
