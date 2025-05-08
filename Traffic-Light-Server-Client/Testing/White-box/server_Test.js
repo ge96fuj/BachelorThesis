@@ -16,7 +16,8 @@ const DEFAULT_DURATIONS = {
     yellow: 2000,
     green: 10000
   };
-
+  const { buildAuthenticatedJsonCommand, validateMessage } = require('/Users/skanderjneyeh/Desktop/Bachelor_Thesis_Rep_6Mai/Traffic-Light-Server-Client/Server/utils/security.js'); // adjust path
+  const crypto = require('crypto');
 
 
 
@@ -341,5 +342,101 @@ describe('TrafficGroup Tests 2', () => {
     
 
 
+
+});
+describe('Authentication Utils', () => {
+
+    beforeEach(() => {
+        global.HashingOn = false;
+        global.TimestampOn = false;
+        global.SECRET_KEY = 'testkey';
+        global.AllowedDelay = 5;
+    });
+
+    it('builds basic JSON command with only code', () => {
+        const jsonStr = buildAuthenticatedJsonCommand(60);
+        const parsed = JSON.parse(jsonStr);
+        expect(parsed.command).to.equal(60);
+        expect(parsed).to.not.have.property('timestamp');
+        expect(parsed).to.not.have.property('hmac');
+    });
+
+    it('adds timestamp if TimestampOn is true', () => {
+        global.TimestampOn = true;
+        const jsonStr = buildAuthenticatedJsonCommand(60);
+        const parsed = JSON.parse(jsonStr);
+        expect(parsed).to.have.property('timestamp');
+    });
+
+    it('adds hmac if HashingOn is true', () => {
+        global.HashingOn = true;
+        const jsonStr = buildAuthenticatedJsonCommand(60);
+        const parsed = JSON.parse(jsonStr);
+        expect(parsed).to.have.property('hmac');
+    });
+
+    it('validates correct HMAC and timestamp', () => {
+        global.HashingOn = true;
+        global.TimestampOn = true;
+
+        const jsonStr = buildAuthenticatedJsonCommand(60);
+        const result = validateMessage(jsonStr);
+
+        expect(result.valid).to.be.true;
+        expect(result.data.command).to.equal(60);
+    });
+
+    it('fails if HMAC is missing while required', () => {
+        global.HashingOn = true;
+        const data = JSON.stringify({ command: 60 });
+        const result = validateMessage(data);
+        expect(result.valid).to.be.false;
+        expect(result.reason).to.equal("Missing HMAC");
+    });
+
+    it('fails if HMAC is wrong', () => {
+        global.HashingOn = true;
+    
+    
+        const validData = { command: 60 };
+        const validHmac = crypto
+            .createHmac("sha256", global.SECRET_KEY)
+            .update(JSON.stringify(validData))
+            .digest("hex");
+    
+  
+        const wrongHmac = "a".repeat(validHmac.length);
+    
+        const msg = { ...validData, hmac: wrongHmac };
+        const result = validateMessage(JSON.stringify(msg));
+    
+        expect(result.valid).to.be.false;
+        expect(result.reason).to.equal("HMAC mismatch");
+    });
+
+    it('fails if timestamp is missing while required', () => {
+        global.TimestampOn = true;
+        const msg = { command: 60 };
+        const data = JSON.stringify(msg);
+        const result = validateMessage(data);
+        expect(result.valid).to.be.false;
+        expect(result.reason).to.equal("Missing timestamp");
+    });
+
+    it('fails if timestamp is too old', () => {
+        global.TimestampOn = true;
+        const timestamp = Math.floor(Date.now() / 1000) - 100; 
+        const msg = { command: 60, timestamp };
+        const data = JSON.stringify(msg);
+        const result = validateMessage(data);
+        expect(result.valid).to.be.false;
+        expect(result.reason).to.include("Timestamp too old");
+    });
+
+    it('fails on invalid JSON', () => {
+        const result = validateMessage("{not json}");
+        expect(result.valid).to.be.false;
+        expect(result.reason).to.equal("Invalid JSON");
+    });
 
 });

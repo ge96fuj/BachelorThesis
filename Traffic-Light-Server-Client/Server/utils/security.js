@@ -1,20 +1,16 @@
 const crypto = require("crypto");
 
-/**
- * Builds a JSON command with optional timestamp and HMAC
- */
+
 function buildAuthenticatedJsonCommand(code) {
-    // Only include lightID if it's expected
+    
     const payload = { command: code };
 
   
 
-    // Add timestamp if enabled
     if (global.TimestampOn) {
         payload.timestamp = Math.floor(Date.now() / 1000);
     }
 
-    // Add HMAC if enabled
     if (global.HashingOn) {
         const jsonToHash = JSON.stringify(payload);
         const hmac = crypto.createHmac('sha256', global.SECRET_KEY)
@@ -27,7 +23,7 @@ function buildAuthenticatedJsonCommand(code) {
 }
 
 /**
- * Verifies HMAC and timestamp in received JSON message
+ * Verifies HMAC and timestamp 
  */
 function validateMessage(dataStr) {
     let parsed;
