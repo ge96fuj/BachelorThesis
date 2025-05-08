@@ -6,32 +6,27 @@ import json
 import os
 import requests
 
-# 2s 2s 5s . Config .. 
 class apiTester(unittest.TestCase):
 
     def setUp(self):
-        self.MQTT_SERVER_PATH = '/Users/skanderjneyeh/Documents/git_rep_BA/TrafficLightThesis/Server/services/mqtt.server.js'
-        self.SERVER_PATH = '/Users/skanderjneyeh/Documents/git_rep_BA/TrafficLightThesis/Server/server.js'
-        self.V1 = '/Users/skanderjneyeh/Documents/git_rep_BA/TrafficLightThesis/Server/simulator/virtual_light.py'
-        self.V2 = '/Users/skanderjneyeh/Documents/git_rep_BA/TrafficLightThesis/Server/simulator/virtual_light2.py'
-        self.BROKER_IP = '10.181.241.34'
+        self.MQTT_SERVER_PATH = '/Users/skanderjneyeh/Desktop/Bachelor_Thesis_Rep_6Mai/Traffic-Light-Server-Client/Server/services/mqtt.server.js'
+        self.SERVER_PATH = '/Users/skanderjneyeh/Desktop/Bachelor_Thesis_Rep_6Mai/Traffic-Light-Server-Client/Server/server.js'
+        self.V1 = '/Users/skanderjneyeh/Desktop/Bachelor_Thesis_Rep_6Mai/Traffic-Light-Server-Client/Server/simulator/virtual_light.py'
+        self.V2 = '/Users/skanderjneyeh/Desktop/Bachelor_Thesis_Rep_6Mai/Traffic-Light-Server-Client/Server/simulator/virtual_light2.py'
+        self.BROKER_IP = '192.168.0.105'
 
         self.tl1_topic = "detection/traffic_lights/tl_1"
         self.tl2_topic = "detection/traffic_lights/tl_2"
 
-        print("Start MQTT ..")
         os.system(f"node {self.MQTT_SERVER_PATH} &")
         time.sleep(10)
 
-        print("Start sv ...")
         os.system(f"node {self.SERVER_PATH} &")
         time.sleep(3)
 
-        print("Start tl_1...")
         os.system(f"python3 {self.V1} &")
         time.sleep(2)
 
-        print("Start tl_2...")
         os.system(f"python3 {self.V2} &")
         time.sleep(5)
 
@@ -49,24 +44,20 @@ class apiTester(unittest.TestCase):
         self.client.loop_start()
 
         if not self.connected.wait(timeout=5):
-            self.fail("Mqtt fail")
+            self.fail("MQTT connection failed")
 
     def tearDown(self):
         self.client.loop_stop()
         self.client.disconnect()
-
         os.system("pkill -f mqtt.server.js")
         os.system("pkill -f server.js")
         os.system("pkill -f virtual_light.py")
         os.system("pkill -f virtual_light2.py")
 
     def on_connect(self, client, userdata, flags, rc):
-            print(f"Connected")
-            self.connected.set()
-            self.client.subscribe(self.tl1_topic)
-            self.client.subscribe(self.tl2_topic)
-            print(f"Subscribed to: {self.tl1_topic}, {self.tl2_topic}")
-
+        self.connected.set()
+        self.client.subscribe(self.tl1_topic)
+        self.client.subscribe(self.tl2_topic)
 
     def on_message(self, client, userdata, msg):
         topic = msg.topic
@@ -89,7 +80,6 @@ class apiTester(unittest.TestCase):
                 try:
                     payload = json.loads(received_state())
                     status = payload.get("status", "").upper()
-                    print(f"{light_id} status: {status}")
                     if status == expected.upper():
                         if hold:
                             if held_since is None:
@@ -100,8 +90,8 @@ class apiTester(unittest.TestCase):
                             return True
                     elif hold:
                         held_since = None
-                except Exception as e:
-                    print(f"Parse error for {light_id}: {e}")
+                except:
+                    pass
             time.sleep(0.5)
 
         return False
@@ -119,20 +109,8 @@ class apiTester(unittest.TestCase):
     def test_group_reset(self):
         requests.get("http://localhost:3000/changeGreen/tl_1")
         time.sleep(1)
-        res = requests.get("http://localhost:3000/reset/tl_1")  
-        self.assertEqual(res.status_code, 200)
-
-
-    def test_reset_without_interrupt(self):
         res = requests.get("http://localhost:3000/reset/tl_1")
-        self.assertEqual(res.status_code, 400)
-        try:
-            res = requests.get("http://localhost:3000/changeGreen/tl_1")
-            self.assertEqual(res.status_code, 200)
-        except Exception as e:
-            self.fail(f"api error: {e}")
-        if not self.wait("tl_1", "GREEN", duration=10, hold=True):
-            self.fail("tl1 should stay G for 10sec")
+        self.assertEqual(res.status_code, 200)
 
     def test_two_interrupts(self):
         try:
@@ -141,36 +119,43 @@ class apiTester(unittest.TestCase):
             res = requests.get("http://localhost:3000/changeGreen/tl_1")
             self.assertEqual(res.status_code, 400)
         except Exception as e:
-                self.fail(f"api error: {e}")
+            self.fail(f"API error: {e}")
         if not self.wait("tl_2", "GREEN", duration=5):
-            self.fail("tl2 is not G ")
+            self.fail("tl_2 is not GREEN")
 
     def test_simu_request(self):
         try:
             res1 = requests.get("http://localhost:3000/changeGreen/tl_1")
             res2 = requests.get("http://localhost:3000/changeGreen/tl_2")
 
-            assertion = (res1.status_code == 200 and res2.status_code==400 ) or (
-                res1.status_code == 400 and res2.status_code==200
-            )
-            self.assertEqual(assertion, True)
+            valid = (res1.status_code == 200 and res2.status_code == 400) or \
+                    (res1.status_code == 400 and res2.status_code == 200)
+            self.assertTrue(valid, "Expected one request to succeed and one to fail")
         except Exception as e:
-            self.fail(f"Api error: {e}")
-        seen_green = set()
-        end = time.time() + 10
-        while time.time() < end:
-            self.message_received.clear()
-            if self.message_received.wait(timeout=2):
-                for tl, state in [("tl_1", self.received_state_tl1), ("tl_2", self.received_state_tl2)]:
-                    try:
-                        status = json.loads(state).get("status", "").upper()
-                        if status == "GREEN":
-                            seen_green.add(tl)
-                    except:
-                        pass
-            time.sleep(0.5)
-        if len(seen_green) > 1:
-            self.fail("2 G same Time , Catastrophe ")
+            self.fail(f"API error: {e}")
+
+        green_lights = []
+        if self.wait("tl_1", "GREEN", duration=10):
+            green_lights.append("tl_1")
+        if self.wait("tl_2", "GREEN", duration=10):
+            green_lights.append("tl_2")
+
+        if len(green_lights) > 1:
+            self.fail(f"Both lights GREEN simultaneously: {green_lights}")
+        elif len(green_lights) == 0:
+            self.fail("No light turned GREEN after simultaneous requests")
+
+    def test_reset_without_interrupt(self):
+        res = requests.get("http://localhost:3000/reset/tl_1")
+        self.assertEqual(res.status_code, 400)
+        try:
+            res = requests.get("http://localhost:3000/changeGreen/tl_1")
+            self.assertEqual(res.status_code, 200)
+        except Exception as e:
+            self.fail(f"API error: {e}")
+        time.sleep(5)
+        if not self.wait("tl_1", "GREEN", duration=10, hold=True):
+            self.fail("tl_1 should stay GREEN for 10 seconds")
 
 if __name__ == "__main__":
     unittest.main()

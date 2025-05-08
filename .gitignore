@@ -6,3 +6,7 @@
 /node_modules
 package-lock.json
 package.json
+/Traffic-Light-Server-Client/Testing/White-box/node_modules
+Traffic-Light-Server-Client/Server/package.json
+Traffic-Light-Server-Client/Server/package.json
+Traffic-Light-Server-Client/Server/package.json

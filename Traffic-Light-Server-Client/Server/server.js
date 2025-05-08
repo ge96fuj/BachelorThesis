@@ -6,8 +6,10 @@ global.TimestampOn = false;
 global.AllowedDelay = 5;
 
 //publish status in MQTT ?
-global.MQTT = true ;
-
+global.MQTT = false ;
+//Server Config
+global.IP = '192.168.0.107';
+PORT = 12345;
 
 const net = require('net');
 const { TrafficLight } = require('./core/TrafficLight.js');
@@ -16,15 +18,14 @@ const lightConfig = require('./config/lightConfig.js');
 // const crypto = require('crypto');
 const  { sendCommand } = require('./utils/traffic.commands.js');
 const { validateMessage } = require('./utils/security');
-require('./services/api.server.js');
+//require('./services/api.server.js');
 if(global.MQTT){
   require('./services/mqtt.service.js');
 }
 
 // SERVER CONFIG 
-IP = '192.168.0.105';
 
-PORT = 12345;
+
 global.lights = {};
 global.trafficGroupsList = [];
 
@@ -111,9 +112,12 @@ const server = net.createServer((socket) => {
   });
 });
 
-server.listen(PORT, IP, () => {
-  console.log('TCP server running on ', IP,":",PORT);
-});
+function startServer() {
+  server.listen(PORT, global.IP , () => {
+    console.log('TCP server ON');
+  });
+  
+}
 
 function handleReceivedMessage(data, socket) {
   try {
@@ -129,6 +133,7 @@ function handleReceivedMessage(data, socket) {
         break;
       default:
         console.log("Invalid Command" , command);
+        socket.end();
     }
   } catch (error) {
     socket.end();
@@ -140,6 +145,7 @@ function addNewTrafficLight(parsedData, dataLength, socket) {
   console.log('Adding Traffic Light...');
   let {lightID} = parsedData;
   if (!lightID ) {
+    socket.end();
     return console.log("Missing lightID");
   }
 
@@ -147,7 +153,9 @@ function addNewTrafficLight(parsedData, dataLength, socket) {
   let light = global.lights[lightID];
 
   if (!light) {
+    socket.end();
     return console.log("lightID ist not from Config" , lightID);
+    
   }
   // Attach socket
   light.socket = socket;
@@ -157,7 +165,7 @@ function addNewTrafficLight(parsedData, dataLength, socket) {
 
 }
 
-function initializeLightsAndGroups() {
+function initConfig(config = lightConfig) {
   const groupedIDs = {};
   global.lights = {};
   global.trafficGroupsList = [];
@@ -165,15 +173,15 @@ function initializeLightsAndGroups() {
   const usedIDs = new Set();
   
   
-  for (const { id, localization_x, localization_y, group, durations } of lightConfig) {
+  for (const { id, localization_x, localization_y, group, durations } of config) {
     if (usedIDs.has(id)) {
-      throw new Error(`❌ Duplicate light ID found: "${id}" in group "${group}"`);
+      throw new Error(` Duplicate light ID found: "${id}" in group "${group}"`);
     }
   
     const lightDurations = durations || DEFAULT_DURATIONS; // fallback duration values if there is no duration in the config file
   
     global.lights[id] = new TrafficLight(id, localization_x, localization_y, undefined, null, lightDurations);
-    console.log(`✅ Created light ${id} with durations:`, lightDurations);
+    console.log(` Created light ${id} with durations:`, lightDurations);
 
     usedIDs.add(id);
   
@@ -195,7 +203,7 @@ function initializeLightsAndGroups() {
 global.launchedGroups = new Set();
   
 async function checkAndLaunchGroups() {
-  console.log("Running checkandlaunch function");
+  // console.log("Running checkandlaunch function");
   for (const group of global.trafficGroupsList) {
     const groupName = group.name;
 
@@ -214,10 +222,18 @@ async function checkAndLaunchGroups() {
   }
 }
 
-initializeLightsAndGroups();
+if (require.main === module) {
+  startServer();
+  require('./services/api.server.js');
+  require('./services/mqtt.service.js');
+  initConfig();
+
 setInterval(() => {
   const allGroupsLaunched = global.trafficGroupsList.length === global.launchedGroups.size;
   if (!allGroupsLaunched) {
     checkAndLaunchGroups().catch(console.error);
   }
 }, 3000);
+}
+
+module.exports = { initConfig,addNewTrafficLight,handleReceivedMessage };
